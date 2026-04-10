@@ -1,200 +1,200 @@
 ---
 name: finishing-a-development-branch
-description: Use when implementation is complete, all tests pass, and you need to decide how to integrate the work - guides completion of development work by presenting structured options for merge, PR, or cleanup
+description: 在实现完成、测试全部通过，需要决定如何合并工作时使用——通过结构化选项引导合并、PR 或清理
 ---
 
-# Finishing a Development Branch
+# 收尾开发分支
 
-## Overview
+## 概述
 
-Guide completion of development work by presenting clear options and handling chosen workflow.
+通过清晰选项与所选工作流，引导开发工作收尾。
 
-**Core principle:** Verify tests → Present options → Execute choice → Clean up.
+**核心原则：** 验证测试 → 呈现选项 → 执行选择 → 清理。
 
-**Announce at start:** "I'm using the finishing-a-development-branch skill to complete this work."
+**开始时宣告：**「我正在使用 finishing-a-development-branch 技能来完成这项工作。」
 
-## The Process
+## 流程
 
-### Step 1: Verify Tests
+### 第 1 步：验证测试
 
-**Before presenting options, verify tests pass:**
+**在呈现选项之前，确认测试通过：**
 
 ```bash
-# Run project's test suite
+# 运行项目测试套件
 npm test / cargo test / pytest / go test ./...
 ```
 
-**If tests fail:**
+**若测试失败：**
 ```
-Tests failing (<N> failures). Must fix before completing:
+测试失败（<N> 处）。必须先修复才能收尾：
 
-[Show failures]
+[展示失败]
 
-Cannot proceed with merge/PR until tests pass.
+在测试通过前不能进行合并/PR。
 ```
 
-Stop. Don't proceed to Step 2.
+停止。不要进入第 2 步。
 
-**If tests pass:** Continue to Step 2.
+**若测试通过：** 进入第 2 步。
 
-### Step 2: Determine Base Branch
+### 第 2 步：确定基分支
 
 ```bash
-# Try common base branches
+# 尝试常见基分支
 git merge-base HEAD main 2>/dev/null || git merge-base HEAD master 2>/dev/null
 ```
 
-Or ask: "This branch split from main - is that correct?"
+或询问：「本分支是从 main 拉的吗？」
 
-### Step 3: Present Options
+### 第 3 步：呈现选项
 
-Present exactly these 4 options:
+**只**呈现以下 4 项：
 
 ```
-Implementation complete. What would you like to do?
+实现已完成。接下来你想怎么做？
 
-1. Merge back to <base-branch> locally
-2. Push and create a Pull Request
-3. Keep the branch as-is (I'll handle it later)
-4. Discard this work
+1. 在本地合并回 <基分支>
+2. 推送并创建 Pull Request
+3. 保留分支不动（稍后我自己处理）
+4. 丢弃本次工作
 
-Which option?
+选哪一项？
 ```
 
-**Don't add explanation** - keep options concise.
+**不要附加长篇说明** — 保持选项简短。
 
-### Step 4: Execute Choice
+### 第 4 步：执行选择
 
-#### Option 1: Merge Locally
+#### 选项 1：本地合并
 
 ```bash
-# Switch to base branch
-git checkout <base-branch>
+# 切换到基分支
+git checkout <基分支>
 
-# Pull latest
+# 拉取最新
 git pull
 
-# Merge feature branch
-git merge <feature-branch>
+# 合并功能分支
+git merge <功能分支>
 
-# Verify tests on merged result
-<test command>
+# 在合并结果上验证测试
+<测试命令>
 
-# If tests pass
-git branch -d <feature-branch>
+# 若测试通过
+git branch -d <功能分支>
 ```
 
-Then: Cleanup worktree (Step 5)
+然后：清理 worktree（第 5 步）
 
-#### Option 2: Push and Create PR
+#### 选项 2：推送并创建 PR
 
 ```bash
-# Push branch
-git push -u origin <feature-branch>
+# 推送分支
+git push -u origin <功能分支>
 
-# Create PR
-gh pr create --title "<title>" --body "$(cat <<'EOF'
-## Summary
-<2-3 bullets of what changed>
+# 创建 PR
+gh pr create --title "<标题>" --body "$(cat <<'EOF'
+## 摘要
+<2–3 条变更要点>
 
-## Test Plan
-- [ ] <verification steps>
+## 测试计划
+- [ ] <验证步骤>
 EOF
 )"
 ```
 
-Then: Cleanup worktree (Step 5)
+然后：清理 worktree（第 5 步）
 
-#### Option 3: Keep As-Is
+#### 选项 3：保持不动
 
-Report: "Keeping branch <name>. Worktree preserved at <path>."
+报告：「保留分支 <名称>。Worktree 保留在 <路径>。」
 
-**Don't cleanup worktree.**
+**不要**清理 worktree。
 
-#### Option 4: Discard
+#### 选项 4：丢弃
 
-**Confirm first:**
+**先确认：**
 ```
-This will permanently delete:
-- Branch <name>
-- All commits: <commit-list>
-- Worktree at <path>
+将永久删除：
+- 分支 <名称>
+- 全部提交：<提交列表>
+- 位于 <路径> 的 worktree
 
-Type 'discard' to confirm.
+输入 discard 确认。
 ```
 
-Wait for exact confirmation.
+等待完全一致的确认。
 
-If confirmed:
+若确认：
 ```bash
-git checkout <base-branch>
-git branch -D <feature-branch>
+git checkout <基分支>
+git branch -D <功能分支>
 ```
 
-Then: Cleanup worktree (Step 5)
+然后：清理 worktree（第 5 步）
 
-### Step 5: Cleanup Worktree
+### 第 5 步：清理 Worktree
 
-**For Options 1, 2, 4:**
+**对选项 1、2、4：**
 
-Check if in worktree:
+检查是否在 worktree 中：
 ```bash
 git worktree list | grep $(git branch --show-current)
 ```
 
-If yes:
+若是：
 ```bash
-git worktree remove <worktree-path>
+git worktree remove <worktree-路径>
 ```
 
-**For Option 3:** Keep worktree.
+**对选项 3：** 保留 worktree。
 
-## Quick Reference
+## 速查
 
-| Option | Merge | Push | Keep Worktree | Cleanup Branch |
+| 选项 | 合并 | 推送 | 保留 Worktree | 清理分支 |
 |--------|-------|------|---------------|----------------|
-| 1. Merge locally | ✓ | - | - | ✓ |
-| 2. Create PR | - | ✓ | ✓ | - |
-| 3. Keep as-is | - | - | ✓ | - |
-| 4. Discard | - | - | - | ✓ (force) |
+| 1. 本地合并 | ✓ | - | - | ✓ |
+| 2. 创建 PR | - | ✓ | ✓ | - |
+| 3. 保持不动 | - | - | ✓ | - |
+| 4. 丢弃 | - | - | - | ✓（强制） |
 
-## Common Mistakes
+## 常见错误
 
-**Skipping test verification**
-- **Problem:** Merge broken code, create failing PR
-- **Fix:** Always verify tests before offering options
+**跳过测试验证**
+- **问题：** 合并坏代码、创建失败 PR  
+- **修复：** 呈现选项前始终验证测试  
 
-**Open-ended questions**
-- **Problem:** "What should I do next?" → ambiguous
-- **Fix:** Present exactly 4 structured options
+**开放式提问**
+- **问题：**「接下来怎么办？」→ 含糊  
+- **修复：** 只呈现上述 4 个结构化选项  
 
-**Automatic worktree cleanup**
-- **Problem:** Remove worktree when might need it (Option 2, 3)
-- **Fix:** Only cleanup for Options 1 and 4
+**自动清理 worktree**
+- **问题：** 在仍可能需要时删除（选项 2、3）  
+- **修复：** 仅对选项 1 和 4 清理  
 
-**No confirmation for discard**
-- **Problem:** Accidentally delete work
-- **Fix:** Require typed "discard" confirmation
+**丢弃无确认**
+- **问题：** 误删工作  
+- **修复：** 要求输入 `discard` 确认  
 
-## Red Flags
+## 危险信号
 
-**Never:**
-- Proceed with failing tests
-- Merge without verifying tests on result
-- Delete work without confirmation
-- Force-push without explicit request
+**绝不：**
+- 测试失败仍继续  
+- 未在合并结果上验证测试就合并  
+- 无确认就删除工作  
+- 未经明确要求就 force-push  
 
-**Always:**
-- Verify tests before offering options
-- Present exactly 4 options
-- Get typed confirmation for Option 4
-- Clean up worktree for Options 1 & 4 only
+**务必：**
+- 呈现选项前先验证测试  
+- 只呈现 4 个选项  
+- 选项 4 须打字确认  
+- 仅对选项 1 与 4 清理 worktree  
 
-## Integration
+## 衔接
 
-**Called by:**
-- **subagent-driven-development** (Step 7) - After all tasks complete
-- **executing-plans** (Step 5) - After all batches complete
+**会调用本技能的有：**
+- **subagent-driven-development**（第 7 步）——全部任务完成后  
+- **executing-plans**（第 5 步）——全部批次完成后  
 
-**Pairs with:**
-- **using-git-worktrees** - Cleans up worktree created by that skill
+**常与之配合：**
+- **using-git-worktrees** ——清理该技能创建的 worktree  

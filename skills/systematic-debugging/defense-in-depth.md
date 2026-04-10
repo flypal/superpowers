@@ -1,26 +1,26 @@
-# Defense-in-Depth Validation
+# 纵深防御式校验
 
-## Overview
+## 概述
 
-When you fix a bug caused by invalid data, adding validation at one place feels sufficient. But that single check can be bypassed by different code paths, refactoring, or mocks.
+因无效数据导致的 bug，只在一处加校验往往觉得够了。但那条路径可能被别的代码路径、重构或 mock 绕过。
 
-**Core principle:** Validate at EVERY layer data passes through. Make the bug structurally impossible.
+**核心原则：** 在数据经过的**每一层**都校验。让 bug **结构上**不可能发生。
 
-## Why Multiple Layers
+## 为何要多层
 
-Single validation: "We fixed the bug"
-Multiple layers: "We made the bug impossible"
+单层校验：「我们修了 bug」  
+多层校验：「我们让 bug 不可能再发生」  
 
-Different layers catch different cases:
-- Entry validation catches most bugs
-- Business logic catches edge cases
-- Environment guards prevent context-specific dangers
-- Debug logging helps when other layers fail
+不同层抓住不同情况：
+- 入口校验抓多数问题  
+- 业务逻辑抓边界  
+- 环境守卫防特定上下文下的危险  
+- 调试日志在其他层失手时帮助取证  
 
-## The Four Layers
+## 四层
 
-### Layer 1: Entry Point Validation
-**Purpose:** Reject obviously invalid input at API boundary
+### 第 1 层：入口校验
+**目的：** 在 API 边界拒绝明显无效输入
 
 ```typescript
 function createProject(name: string, workingDirectory: string) {
@@ -37,8 +37,8 @@ function createProject(name: string, workingDirectory: string) {
 }
 ```
 
-### Layer 2: Business Logic Validation
-**Purpose:** Ensure data makes sense for this operation
+### 第 2 层：业务逻辑校验
+**目的：** 确保数据对本操作有意义
 
 ```typescript
 function initializeWorkspace(projectDir: string, sessionId: string) {
@@ -49,12 +49,11 @@ function initializeWorkspace(projectDir: string, sessionId: string) {
 }
 ```
 
-### Layer 3: Environment Guards
-**Purpose:** Prevent dangerous operations in specific contexts
+### 第 3 层：环境守卫
+**目的：** 在特定上下文阻止危险操作
 
 ```typescript
 async function gitInit(directory: string) {
-  // In tests, refuse git init outside temp directories
   if (process.env.NODE_ENV === 'test') {
     const normalized = normalize(resolve(directory));
     const tmpDir = normalize(resolve(tmpdir()));
@@ -69,8 +68,8 @@ async function gitInit(directory: string) {
 }
 ```
 
-### Layer 4: Debug Instrumentation
-**Purpose:** Capture context for forensics
+### 第 4 层：调试埋点
+**目的：** 取证用上下文
 
 ```typescript
 async function gitInit(directory: string) {
@@ -84,39 +83,39 @@ async function gitInit(directory: string) {
 }
 ```
 
-## Applying the Pattern
+## 应用模式
 
-When you find a bug:
+发现 bug 时：
 
-1. **Trace the data flow** - Where does bad value originate? Where used?
-2. **Map all checkpoints** - List every point data passes through
-3. **Add validation at each layer** - Entry, business, environment, debug
-4. **Test each layer** - Try to bypass layer 1, verify layer 2 catches it
+1. **追踪数据流** — 坏值从哪来？用在哪？  
+2. **列出所有检查点** — 数据经过的每一处  
+3. **每层加校验** — 入口、业务、环境、调试  
+4. **逐层测** — 试着绕过第 1 层，确认第 2 层能抓住  
 
-## Example from Session
+## 会话中的例子
 
-Bug: Empty `projectDir` caused `git init` in source code
+Bug：空 `projectDir` 导致在源码目录 `git init`
 
-**Data flow:**
-1. Test setup → empty string
-2. `Project.create(name, '')`
-3. `WorkspaceManager.createWorkspace('')`
-4. `git init` runs in `process.cwd()`
+**数据流：**
+1. 测试 setup → 空串  
+2. `Project.create(name, '')`  
+3. `WorkspaceManager.createWorkspace('')`  
+4. `git init` 在 `process.cwd()` 跑  
 
-**Four layers added:**
-- Layer 1: `Project.create()` validates not empty/exists/writable
-- Layer 2: `WorkspaceManager` validates projectDir not empty
-- Layer 3: `WorktreeManager` refuses git init outside tmpdir in tests
-- Layer 4: Stack trace logging before git init
+**四层：**
+- 第 1 层：`Project.create()` 校验非空/存在/可写  
+- 第 2 层：`WorkspaceManager` 校验 projectDir 非空  
+- 第 3 层：`WorktreeManager` 在测试中拒绝 tmp 外 git init  
+- 第 4 层：git init 前打栈  
 
-**Result:** All 1847 tests passed, bug impossible to reproduce
+**结果：** 1847 测试通过，bug 无法再复现  
 
-## Key Insight
+## 关键洞察
 
-All four layers were necessary. During testing, each layer caught bugs the others missed:
-- Different code paths bypassed entry validation
-- Mocks bypassed business logic checks
-- Edge cases on different platforms needed environment guards
-- Debug logging identified structural misuse
+四层都有必要。测试时各层抓到过其他层漏掉的问题：
+- 不同路径绕过入口校验  
+- Mock 绕过业务检查  
+- 不同平台边界需要环境守卫  
+- 调试日志发现结构性误用  
 
-**Don't stop at one validation point.** Add checks at every layer.
+**不要停在一处校验。** 每一层都加检查。

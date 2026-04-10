@@ -1,79 +1,71 @@
-# Codex Tool Mapping
+# Codex 工具映射
 
-Skills use Claude Code tool names. When you encounter these in a skill, use your platform equivalent:
+技能使用 Claude Code 的工具名。遇到下列名称时，请使用你所在平台的等价工具：
 
-| Skill references | Codex equivalent |
+| 技能中的名称 | Codex 等价 |
 |-----------------|------------------|
-| `Task` tool (dispatch subagent) | `spawn_agent` (see [Named agent dispatch](#named-agent-dispatch)) |
-| Multiple `Task` calls (parallel) | Multiple `spawn_agent` calls |
-| Task returns result | `wait` |
-| Task completes automatically | `close_agent` to free slot |
-| `TodoWrite` (task tracking) | `update_plan` |
-| `Skill` tool (invoke a skill) | Skills load natively — just follow the instructions |
-| `Read`, `Write`, `Edit` (files) | Use your native file tools |
-| `Bash` (run commands) | Use your native shell tools |
+| `Task`（派发子智能体） | `spawn_agent`（见下文「命名智能体派发」） |
+| 多次 `Task`（并行） | 多次 `spawn_agent` |
+| 任务返回结果 | `wait` |
+| 任务自动结束 | `close_agent` 释放槽位 |
+| `TodoWrite`（待办） | `update_plan` |
+| `Skill`（调用技能） | 技能原生加载——直接遵循说明 |
+| `Read`、`Write`、`Edit` | 使用原生文件工具 |
+| `Bash` | 使用原生 shell 工具 |
 
-## Subagent dispatch requires multi-agent support
+## 子智能体派发需要多智能体支持
 
-Add to your Codex config (`~/.codex/config.toml`):
+在 Codex 配置 `~/.codex/config.toml` 中加入：
 
 ```toml
 [features]
 multi_agent = true
 ```
 
-This enables `spawn_agent`, `wait`, and `close_agent` for skills like `dispatching-parallel-agents` and `subagent-driven-development`.
+这样会启用 `spawn_agent`、`wait`、`close_agent`，供 `dispatching-parallel-agents`、`subagent-driven-development` 等技能使用。
 
-## Named agent dispatch
+## 命名智能体派发
 
-Claude Code skills reference named agent types like `superpowers:code-reviewer`.
-Codex does not have a named agent registry — `spawn_agent` creates generic agents
-from built-in roles (`default`, `explorer`, `worker`).
+Claude Code 技能会引用如 `superpowers:code-reviewer` 这类命名类型。  
+Codex 没有命名注册表——`spawn_agent` 用内置角色（`default`、`explorer`、`worker`）创建通用智能体。
 
-When a skill says to dispatch a named agent type:
+当技能要求派发命名类型时：
 
-1. Find the agent's prompt file (e.g., `agents/code-reviewer.md` or the skill's
-   local prompt template like `code-quality-reviewer-prompt.md`)
-2. Read the prompt content
-3. Fill any template placeholders (`{BASE_SHA}`, `{WHAT_WAS_IMPLEMENTED}`, etc.)
-4. Spawn a `worker` agent with the filled content as the `message`
+1. 找到该智能体的提示文件（如 `agents/code-reviewer.md` 或技能内 `code-quality-reviewer-prompt.md`）  
+2. 读取提示内容  
+3. 填写模板占位符（`{BASE_SHA}`、`{WHAT_WAS_IMPLEMENTED}` 等）  
+4. 以填充后的内容作为 `message` 派发 `worker` 智能体  
 
-| Skill instruction | Codex equivalent |
+| 技能指令 | Codex 等价 |
 |-------------------|------------------|
-| `Task tool (superpowers:code-reviewer)` | `spawn_agent(agent_type="worker", message=...)` with `code-reviewer.md` content |
-| `Task tool (general-purpose)` with inline prompt | `spawn_agent(message=...)` with the same prompt |
+| `Task tool (superpowers:code-reviewer)` | `spawn_agent(agent_type="worker", message=...)`，内容为 `code-reviewer.md` |
+| `Task tool (general-purpose)` 且内联提示 | `spawn_agent(message=...)`，同一提示 |
 
-### Message framing
+### 消息框架
 
-The `message` parameter is user-level input, not a system prompt. Structure it
-for maximum instruction adherence:
+`message` 是用户层输入，不是系统提示。为最大化遵循度，建议结构：
 
 ```
-Your task is to perform the following. Follow the instructions below exactly.
+你的任务是执行下列内容。请严格遵循以下说明。
 
 <agent-instructions>
-[filled prompt content from the agent's .md file]
+[来自智能体 .md 的已填充内容]
 </agent-instructions>
 
-Execute this now. Output ONLY the structured response following the format
-specified in the instructions above.
+立即执行。仅按上述说明中规定的格式输出结构化结果。
 ```
 
-- Use task-delegation framing ("Your task is...") rather than persona framing ("You are...")
-- Wrap instructions in XML tags — the model treats tagged blocks as authoritative
-- End with an explicit execution directive to prevent summarization of the instructions
+- 用任务委托框架（「你的任务是……」）而非人设（「你是……」）  
+- 用 XML 标签包裹说明——模型会把标签块视为权威  
+- 以明确执行指令结尾，避免把说明总结掉  
 
-### When this workaround can be removed
+### 何时可去掉该变通
 
-This approach compensates for Codex's plugin system not yet supporting an `agents`
-field in `plugin.json`. When `RawPluginManifest` gains an `agents` field, the
-plugin can symlink to `agents/` (mirroring the existing `skills/` symlink) and
-skills can dispatch named agent types directly.
+该做法用于弥补 Codex 插件系统尚未在 `plugin.json` 支持 `agents` 字段。当 `RawPluginManifest` 增加 `agents` 后，插件可像现有 `skills/` 一样 symlink 到 `agents/`，技能即可直接派发命名类型。
 
-## Environment Detection
+## 环境检测
 
-Skills that create worktrees or finish branches should detect their
-environment with read-only git commands before proceeding:
+创建 worktree 或收尾分支的技能应先**只读**用 git 探测环境：
 
 ```bash
 GIT_DIR=$(cd "$(git rev-parse --git-dir)" 2>/dev/null && pwd -P)
@@ -81,20 +73,16 @@ GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
 BRANCH=$(git branch --show-current)
 ```
 
-- `GIT_DIR != GIT_COMMON` → already in a linked worktree (skip creation)
-- `BRANCH` empty → detached HEAD (cannot branch/push/PR from sandbox)
+- `GIT_DIR != GIT_COMMON` → 已在链接的 worktree 中（跳过创建）  
+- `BRANCH` 为空 → 分离 HEAD（沙箱中无法分支/推送/开 PR）  
 
-See `using-git-worktrees` Step 0 and `finishing-a-development-branch`
-Step 1 for how each skill uses these signals.
+详见 `using-git-worktrees` 第 0 步与 `finishing-a-development-branch` 第 1 步如何解读这些信号。
 
-## Codex App Finishing
+## Codex App 收尾
 
-When the sandbox blocks branch/push operations (detached HEAD in an
-externally managed worktree), the agent commits all work and informs
-the user to use the App's native controls:
+若沙箱阻止分支/推送（外部托管 worktree 中分离 HEAD），智能体应提交全部工作并提示用户使用 App 原生操作：
 
-- **"Create branch"** — names the branch, then commit/push/PR via App UI
-- **"Hand off to local"** — transfers work to the user's local checkout
+- **「Create branch」** — 命名分支后通过 App UI 提交/推送/开 PR  
+- **「Hand off to local」** — 将工作转到用户本地检出  
 
-The agent can still run tests, stage files, and output suggested branch
-names, commit messages, and PR descriptions for the user to copy.
+智能体仍可运行测试、暂存文件，并输出建议分支名、提交说明与 PR 描述供用户复制。

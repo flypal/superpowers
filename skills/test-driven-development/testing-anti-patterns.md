@@ -1,93 +1,93 @@
-# Testing Anti-Patterns
+# 测试反模式
 
-**Load this reference when:** writing or changing tests, adding mocks, or tempted to add test-only methods to production code.
+**何时加载本参考：** 编写或修改测试、添加 mock，或想给生产类加「仅测试用」方法时。
 
-## Overview
+## 概述
 
-Tests must verify real behavior, not mock behavior. Mocks are a means to isolate, not the thing being tested.
+测试必须验证**真实行为**，不是 mock 行为。mock 用来隔离依赖，不是被测对象。
 
-**Core principle:** Test what the code does, not what the mocks do.
+**核心原则：** 测代码**做什么**，不要测 mock **做什么**。
 
-**Following strict TDD prevents these anti-patterns.**
+**严格 TDD 能防止这些反模式。**
 
-## The Iron Laws
+## 铁律
 
 ```
-1. NEVER test mock behavior
-2. NEVER add test-only methods to production classes
-3. NEVER mock without understanding dependencies
+1. 绝不测 mock 行为
+2. 绝不给生产类加仅测试用的方法
+3. 未理解依赖就不要 mock
 ```
 
-## Anti-Pattern 1: Testing Mock Behavior
+## 反模式 1：测 mock 行为
 
-**The violation:**
+**违规：**
 ```typescript
-// ❌ BAD: Testing that the mock exists
+// ❌ 差：测的是 mock 在不在
 test('renders sidebar', () => {
   render(<Page />);
   expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument();
 });
 ```
 
-**Why this is wrong:**
-- You're verifying the mock works, not that the component works
-- Test passes when mock is present, fails when it's not
-- Tells you nothing about real behavior
+**为何错：**
+- 你在验证 mock 能用，不是组件能用  
+- mock 在就过，不在就挂  
+- 对真实行为一无所知  
 
-**your human partner's correction:** "Are we testing the behavior of a mock?"
+**伙伴的纠正：**「我们是在测 mock 的行为吗？」
 
-**The fix:**
+**修复：**
 ```typescript
-// ✅ GOOD: Test real component or don't mock it
+// ✅ 好：测真实组件或不要 mock
 test('renders sidebar', () => {
-  render(<Page />);  // Don't mock sidebar
+  render(<Page />);  // 不要 mock sidebar
   expect(screen.getByRole('navigation')).toBeInTheDocument();
 });
 
-// OR if sidebar must be mocked for isolation:
-// Don't assert on the mock - test Page's behavior with sidebar present
+// 或若 sidebar 必须 mock 以隔离：
+// 不要对 mock 断言——测 Page 在 sidebar 存在时的行为
 ```
 
-### Gate Function
+### 门禁
 
 ```
-BEFORE asserting on any mock element:
-  Ask: "Am I testing real component behavior or just mock existence?"
+在对任何 mock 元素断言之前：
+  问：「我在测真实组件行为，还是只测 mock 在不在？」
 
-  IF testing mock existence:
-    STOP - Delete the assertion or unmock the component
+  若只是测 mock 在不在：
+    停——删掉断言或取消 mock
 
-  Test real behavior instead
+  改测真实行为
 ```
 
-## Anti-Pattern 2: Test-Only Methods in Production
+## 反模式 2：生产代码里仅测试用的方法
 
-**The violation:**
+**违规：**
 ```typescript
-// ❌ BAD: destroy() only used in tests
+// ❌ 差：destroy() 只在测试里用
 class Session {
-  async destroy() {  // Looks like production API!
+  async destroy() {  // 看起来像生产 API！
     await this._workspaceManager?.destroyWorkspace(this.id);
     // ... cleanup
   }
 }
 
-// In tests
+// 测试中
 afterEach(() => session.destroy());
 ```
 
-**Why this is wrong:**
-- Production class polluted with test-only code
-- Dangerous if accidentally called in production
-- Violates YAGNI and separation of concerns
-- Confuses object lifecycle with entity lifecycle
+**为何错：**
+- 生产类被测试专用代码污染  
+- 若生产误调用很危险  
+- 违反 YAGNI 与关注点分离  
+- 混淆对象生命周期与实体生命周期  
 
-**The fix:**
+**修复：**
 ```typescript
-// ✅ GOOD: Test utilities handle test cleanup
-// Session has no destroy() - it's stateless in production
+// ✅ 好：测试工具负责清理
+// Session 无 destroy() —— 生产中无状态
 
-// In test-utils/
+// test-utils/
 export async function cleanupSession(session: Session) {
   const workspace = session.getWorkspaceInfo();
   if (workspace) {
@@ -95,205 +95,205 @@ export async function cleanupSession(session: Session) {
   }
 }
 
-// In tests
+// 测试中
 afterEach(() => cleanupSession(session));
 ```
 
-### Gate Function
+### 门禁
 
 ```
-BEFORE adding any method to production class:
-  Ask: "Is this only used by tests?"
+在给生产类加任何方法之前：
+  问：「是否只有测试会用？」
 
-  IF yes:
-    STOP - Don't add it
-    Put it in test utilities instead
+  若是：
+    停——不要加进生产类
+    放进测试工具
 
-  Ask: "Does this class own this resource's lifecycle?"
+  问：「这个类是否拥有该资源的生命周期？」
 
-  IF no:
-    STOP - Wrong class for this method
+  若否：
+    停——方法放错类
 ```
 
-## Anti-Pattern 3: Mocking Without Understanding
+## 反模式 3：不理解就 mock
 
-**The violation:**
+**违规：**
 ```typescript
-// ❌ BAD: Mock breaks test logic
+// ❌ 差：mock 破坏了测试依赖的逻辑
 test('detects duplicate server', () => {
-  // Mock prevents config write that test depends on!
+  // mock 阻止了测试依赖的配置写入！
   vi.mock('ToolCatalog', () => ({
     discoverAndCacheTools: vi.fn().mockResolvedValue(undefined)
   }));
 
   await addServer(config);
-  await addServer(config);  // Should throw - but won't!
+  await addServer(config);  // 应抛错——但不会！
 });
 ```
 
-**Why this is wrong:**
-- Mocked method had side effect test depended on (writing config)
-- Over-mocking to "be safe" breaks actual behavior
-- Test passes for wrong reason or fails mysteriously
+**为何错：**
+- 被 mock 的方法有测试依赖的副作用（写配置）  
+- 过度 mock「求稳」反而破坏真实行为  
+- 测试因错误原因通过或神秘失败  
 
-**The fix:**
+**修复：**
 ```typescript
-// ✅ GOOD: Mock at correct level
+// ✅ 好：在正确层次 mock
 test('detects duplicate server', () => {
-  // Mock the slow part, preserve behavior test needs
-  vi.mock('MCPServerManager'); // Just mock slow server startup
+  // 只 mock 慢的部分，保留测试需要的行为
+  vi.mock('MCPServerManager'); // 只 mock 慢启动
 
-  await addServer(config);  // Config written
-  await addServer(config);  // Duplicate detected ✓
+  await addServer(config);  // 配置写入
+  await addServer(config);  // 重复检测 ✓
 });
 ```
 
-### Gate Function
+### 门禁
 
 ```
-BEFORE mocking any method:
-  STOP - Don't mock yet
+在 mock 任何方法之前：
+  停——先别 mock
 
-  1. Ask: "What side effects does the real method have?"
-  2. Ask: "Does this test depend on any of those side effects?"
-  3. Ask: "Do I fully understand what this test needs?"
+  1. 问：「真实方法有哪些副作用？」
+  2. 问：「本测试是否依赖其中任一副作用？」
+  3. 问：「我是否完全理解本测试需要什么？」
 
-  IF depends on side effects:
-    Mock at lower level (the actual slow/external operation)
-    OR use test doubles that preserve necessary behavior
-    NOT the high-level method the test depends on
+  若依赖副作用：
+    在更低层 mock（真正慢/外部的操作）
+    或使用保留必要行为的测试替身
+    不要 mock 测试依赖的高层方法
 
-  IF unsure what test depends on:
-    Run test with real implementation FIRST
-    Observe what actually needs to happen
-    THEN add minimal mocking at the right level
+  若不确定依赖什么：
+    先用真实实现跑测试
+    观察实际需要什么
+    再在合适层次加最少 mock
 
-  Red flags:
-    - "I'll mock this to be safe"
-    - "This might be slow, better mock it"
-    - Mocking without understanding the dependency chain
+  危险信号：
+    - 「我 mock 一下求稳」
+    - 「可能慢，不如 mock」
+    - 不理解依赖链就 mock
 ```
 
-## Anti-Pattern 4: Incomplete Mocks
+## 反模式 4：不完整的 mock
 
-**The violation:**
+**违规：**
 ```typescript
-// ❌ BAD: Partial mock - only fields you think you need
+// ❌ 差：部分 mock——只填你以为要的字段
 const mockResponse = {
   status: 'success',
   data: { userId: '123', name: 'Alice' }
-  // Missing: metadata that downstream code uses
+  // 缺：下游会用到的 metadata
 };
 
-// Later: breaks when code accesses response.metadata.requestId
+// 稍后：访问 response.metadata.requestId 时崩
 ```
 
-**Why this is wrong:**
-- **Partial mocks hide structural assumptions** - You only mocked fields you know about
-- **Downstream code may depend on fields you didn't include** - Silent failures
-- **Tests pass but integration fails** - Mock incomplete, real API complete
-- **False confidence** - Test proves nothing about real behavior
+**为何错：**
+- **部分 mock 隐藏结构假设**——你只 mock 知道的字段  
+- **下游可能依赖你没包的字段**——静默失败  
+- **测试过、集成挂**—— mock 不完整，真实 API 完整  
+- **虚假信心**——测试什么也没证明  
 
-**The Iron Rule:** Mock the COMPLETE data structure as it exists in reality, not just fields your immediate test uses.
+**铁律：** mock **完整**数据结构，如现实中所是，不要只 mock 当前测试立刻用到的字段。
 
-**The fix:**
+**修复：**
 ```typescript
-// ✅ GOOD: Mirror real API completeness
+// ✅ 好：镜像真实 API 的完整度
 const mockResponse = {
   status: 'success',
   data: { userId: '123', name: 'Alice' },
   metadata: { requestId: 'req-789', timestamp: 1234567890 }
-  // All fields real API returns
+  // 真实 API 返回的全部字段
 };
 ```
 
-### Gate Function
+### 门禁
 
 ```
-BEFORE creating mock responses:
-  Check: "What fields does the real API response contain?"
+在造 mock 响应之前：
+  查：「真实 API 响应包含哪些字段？」
 
-  Actions:
-    1. Examine actual API response from docs/examples
-    2. Include ALL fields system might consume downstream
-    3. Verify mock matches real response schema completely
+  行动：
+    1. 从文档/示例看真实响应
+    2. 包含系统下游可能消费的全部字段
+    3. 验证 mock 与真实 schema 完全一致
 
-  Critical:
-    If you're creating a mock, you must understand the ENTIRE structure
-    Partial mocks fail silently when code depends on omitted fields
+  关键：
+    若造 mock，你必须理解**整个**结构
+    部分 mock 在代码依赖被省略字段时会静默失败
 
-  If uncertain: Include all documented fields
+  不确定：包含文档列出的全部字段
 ```
 
-## Anti-Pattern 5: Integration Tests as Afterthought
+## 反模式 5：集成测试成事后想法
 
-**The violation:**
+**违规：**
 ```
-✅ Implementation complete
-❌ No tests written
-"Ready for testing"
-```
-
-**Why this is wrong:**
-- Testing is part of implementation, not optional follow-up
-- TDD would have caught this
-- Can't claim complete without tests
-
-**The fix:**
-```
-TDD cycle:
-1. Write failing test
-2. Implement to pass
-3. Refactor
-4. THEN claim complete
+✅ 实现完成
+❌ 没写测试
+「可以测了」
 ```
 
-## When Mocks Become Too Complex
+**为何错：**
+- 测试是实现的一部分，不是可选后续  
+- TDD 本会拦住这种情况  
+- 没测试不能叫完成  
 
-**Warning signs:**
-- Mock setup longer than test logic
-- Mocking everything to make test pass
-- Mocks missing methods real components have
-- Test breaks when mock changes
+**修复：**
+```
+TDD 循环：
+1. 写失败测试
+2. 实现到通过
+3. 重构
+4. **再**声称完成
+```
 
-**your human partner's question:** "Do we need to be using a mock here?"
+## mock 变得太复杂时
 
-**Consider:** Integration tests with real components often simpler than complex mocks
+**警告信号：**
+- mock 搭建比测试逻辑还长  
+- 什么都 mock 才让测试过  
+- mock 缺真实组件有的方法  
+- mock 一变测试就挂  
 
-## TDD Prevents These Anti-Patterns
+**伙伴会问：**「这里真的需要 mock 吗？」
 
-**Why TDD helps:**
-1. **Write test first** → Forces you to think about what you're actually testing
-2. **Watch it fail** → Confirms test tests real behavior, not mocks
-3. **Minimal implementation** → No test-only methods creep in
-4. **Real dependencies** → You see what the test actually needs before mocking
+**考虑：** 用真实组件的集成测试往往比复杂 mock 更简单  
 
-**If you're testing mock behavior, you violated TDD** - you added mocks without watching test fail against real code first.
+## TDD 如何防止这些反模式
 
-## Quick Reference
+**为何有帮助：**
+1. **先写测试** → 被迫想清楚到底在测什么  
+2. **看它失败** → 确认测的是真实行为，不是 mock  
+3. **最少实现** → 不会塞进仅测试方法  
+4. **真实依赖** → mock 前你已看到测试真正需要什么  
 
-| Anti-Pattern | Fix |
+**若你在测 mock 行为，你已违反 TDD**——没先看对真实代码失败就加了 mock。
+
+## 速查
+
+| 反模式 | 修复 |
 |--------------|-----|
-| Assert on mock elements | Test real component or unmock it |
-| Test-only methods in production | Move to test utilities |
-| Mock without understanding | Understand dependencies first, mock minimally |
-| Incomplete mocks | Mirror real API completely |
-| Tests as afterthought | TDD - tests first |
-| Over-complex mocks | Consider integration tests |
+| 断言 mock 元素 | 测真实组件或取消 mock |
+| 生产类仅测试方法 | 移到测试工具 |
+| 不理解就 mock | 先理解依赖，最少化 mock |
+| 不完整 mock | 完整镜像真实 API |
+| 测试当后补 | TDD，测试先行 |
+| mock 过度复杂 | 考虑集成测试 |
 
-## Red Flags
+## 危险信号
 
-- Assertion checks for `*-mock` test IDs
-- Methods only called in test files
-- Mock setup is >50% of test
-- Test fails when you remove mock
-- Can't explain why mock is needed
-- Mocking "just to be safe"
+- 断言查 `*-mock` 测试 ID  
+- 方法只在测试文件里被调用  
+- mock 搭建占测试一半以上  
+- 去掉 mock 测试就挂  
+- 说不清为何需要 mock  
+- 「先 mock 求稳」  
 
-## The Bottom Line
+## 底线
 
-**Mocks are tools to isolate, not things to test.**
+**mock 是隔离工具，不是被测对象。**
 
-If TDD reveals you're testing mock behavior, you've gone wrong.
+若 TDD 显示你在测 mock 行为，你已经走偏了。
 
-Fix: Test real behavior or question why you're mocking at all.
+修复：测真实行为，或质疑是否根本不该 mock。
